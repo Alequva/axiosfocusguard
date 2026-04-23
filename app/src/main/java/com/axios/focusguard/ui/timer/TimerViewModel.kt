@@ -1,12 +1,10 @@
 package com.axios.focusguard.ui.timer
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.axios.focusguard.data.FocusManager
 import com.axios.focusguard.util.PermissionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -29,5 +27,9 @@ class TimerViewModel @Inject constructor(
 
     fun toggleTimer() {
         focusManager.toggleTimer()
+    }
+
+    fun finishSessionEarly() {
+        focusManager.finishSessionEarly()
     }
 }

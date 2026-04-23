@@ -27,7 +27,8 @@ enum class AppCategory {
 class AppRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val blockedAppDao: BlockedAppDao,
-    private val sessionEventDao: SessionEventDao
+    private val sessionEventDao: SessionEventDao,
+    private val focusSessionDao: FocusSessionDao
 ) {
     fun getBlockedApps(): Flow<List<BlockedApp>> = blockedAppDao.getAllBlockedApps()
 
@@ -85,4 +86,8 @@ class AppRepository @Inject constructor(
     }
 
     fun getEventsForSession(sessionId: String): Flow<List<SessionEvent>> = sessionEventDao.getEventsForSession(sessionId)
+
+    suspend fun saveFocusSession(session: FocusSession) {
+        focusSessionDao.insertSession(session)
+    }
 }
