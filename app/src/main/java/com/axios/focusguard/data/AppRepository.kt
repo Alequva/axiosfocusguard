@@ -15,13 +15,19 @@ data class AppInfo(
     val packageName: String,
     val name: String,
     val icon: Drawable?,
-    val isBlocked: Boolean = false
+    val isBlocked: Boolean = false,
+    val category: AppCategory = AppCategory.OTHER
 )
+
+enum class AppCategory {
+    SOCIAL, VIDEO, GAME, OTHER
+}
 
 @Singleton
 class AppRepository @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val blockedAppDao: BlockedAppDao
+    private val blockedAppDao: BlockedAppDao,
+    private val sessionEventDao: SessionEventDao
 ) {
     fun getBlockedApps(): Flow<List<BlockedApp>> = blockedAppDao.getAllBlockedApps()
 
@@ -38,14 +44,45 @@ class AppRepository @Inject constructor(
         val packages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
         
         packages
-            .filter { it.flags and ApplicationInfo.FLAG_SYSTEM == 0 } // Filter out system apps for now
+            .filter { it.flags and ApplicationInfo.FLAG_SYSTEM == 0 || isPopularDistractor(it.packageName) }
             .map { app ->
                 AppInfo(
                     packageName = app.packageName,
                     name = pm.getApplicationLabel(app).toString(),
-                    icon = pm.getApplicationIcon(app)
+                    icon = pm.getApplicationIcon(app),
+                    category = getCategory(app)
                 )
             }
-            .sortedBy { it.name }
+            .sortedWith(compareBy({ it.category }, { it.name }))
     }
+
+    private fun getCategory(app: ApplicationInfo): AppCategory {
+        return when {
+            app.category == ApplicationInfo.CATEGORY_GAME -> AppCategory.GAME
+            app.category == ApplicationInfo.CATEGORY_VIDEO -> AppCategory.VIDEO
+            socialPackages.contains(app.packageName) -> AppCategory.SOCIAL
+            videoPackages.contains(app.packageName) -> AppCategory.VIDEO
+            else -> AppCategory.OTHER
+        }
+    }
+
+    private fun isPopularDistractor(packageName: String): Boolean {
+        return socialPackages.contains(packageName) || videoPackages.contains(packageName)
+    }
+
+    private val socialPackages = setOf(
+        "com.zhiliaoapp.musically", "com.instagram.android", "com.facebook.katana",
+        "com.twitter.android", "com.snapchat.android", "com.whatsapp", "com.reddit.frontpage"
+    )
+
+    private val videoPackages = setOf(
+        "com.google.android.youtube", "com.netflix.mediaclient", "com.amazon.avod.thirdpartyclient",
+        "com.hulu.plus", "com.disney.disneyplus", "org.videolan.vlc"
+    )
+
+    suspend fun logSessionEvent(sessionId: String, packageName: String, appName: String) {
+        sessionEventDao.insertEvent(SessionEvent(sessionId = sessionId, packageName = packageName, appName = appName))
+    }
+
+    fun getEventsForSession(sessionId: String): Flow<List<SessionEvent>> = sessionEventDao.getEventsForSession(sessionId)
 }

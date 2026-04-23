@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Axios</string>
+    <string name="accessibility_description">Used to block distracting apps during focus sessions.</string>
 </resources>

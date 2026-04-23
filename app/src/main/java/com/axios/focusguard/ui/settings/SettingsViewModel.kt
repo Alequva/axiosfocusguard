@@ -4,23 +4,26 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.axios.focusguard.data.AppInfo
 import com.axios.focusguard.data.AppRepository
+import com.axios.focusguard.util.PermissionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class SettingsUiState(
     val apps: List<AppInfo> = emptyList(),
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val isAccessibilityEnabled: Boolean = false,
+    val isOverlayEnabled: Boolean = false
 )
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val repository: AppRepository
+    private val repository: AppRepository,
+    private val permissionManager: PermissionManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -28,7 +31,18 @@ class SettingsViewModel @Inject constructor(
 
     init {
         loadApps()
+        updatePermissions()
     }
+
+    fun updatePermissions() {
+        _uiState.update { it.copy(
+            isAccessibilityEnabled = permissionManager.isAccessibilityServiceEnabled(),
+            isOverlayEnabled = permissionManager.isOverlayPermissionGranted()
+        )}
+    }
+
+    fun openAccessibilitySettings() = permissionManager.openAccessibilitySettings()
+    fun openOverlaySettings() = permissionManager.openOverlaySettings()
 
     private fun loadApps() {
         viewModelScope.launch {
