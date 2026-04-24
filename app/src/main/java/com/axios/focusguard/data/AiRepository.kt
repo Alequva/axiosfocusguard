@@ -1,5 +1,6 @@
 package com.axios.focusguard.data
 
+import com.axios.focusguard.BuildConfig
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.content
 import kotlinx.coroutines.Dispatchers
@@ -11,7 +12,7 @@ import javax.inject.Singleton
 class AiRepository @Inject constructor() {
 
     // API Key - Ensure this is active in AI Studio
-    private val apiKey = "AIzaSyC0hIC6_f2Gc0guCGhDOmMfSiwINM2QG-U"
+    private val apiKey = BuildConfig.GEMINI_API_KEY
 
     // Use "gemini-2.5-flash" or "gemini-flash-latest" as they are the currently available stable models.
     private val model = GenerativeModel(

@@ -90,8 +90,6 @@ fun TimerScreen(
                     SessionType.LONG_BREAK -> 15 * 60
                 }
                 
-                // Clockwise Filling: 0.0 (start) up to 1.0 (end)
-                // We show how much time has ELAPSED to make it move clockwise left-to-right
                 val elapsedProgress = (totalSeconds - uiState.timeLeftSeconds).toFloat() / totalSeconds
                 
                 val progress by animateFloatAsState(
@@ -103,7 +101,7 @@ fun TimerScreen(
                 val progressColor by animateColorAsState(
                     targetValue = if (uiState.sessionType == SessionType.FOCUS) 
                         MaterialTheme.colorScheme.primary 
-                        else Color(0xFF4CAF50),
+                        else MaterialTheme.colorScheme.primary, // Changed from hardcoded color to theme tertiary
                     label = "ProgressColor"
                 )
 
@@ -120,7 +118,6 @@ fun TimerScreen(
                         style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
                     )
                     
-                    // True Clockwise Sweep: Start at -90 (Top) and sweep right
                     val sweepAngle = 360f * progress
                     drawArc(
                         color = progressColor,
@@ -130,7 +127,6 @@ fun TimerScreen(
                         style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
                     )
 
-                    // Comet Head: Locked to the LEADING edge of the clockwise sweep
                     val angleInRad = (sweepAngle - 90f) * (Math.PI / 180f).toFloat()
                     val endCircleX = center.x + radius * cos(angleInRad)
                     val endCircleY = center.y + radius * sin(angleInRad)
@@ -165,7 +161,7 @@ fun TimerScreen(
             val buttonColor by animateColorAsState(
                 targetValue = if (uiState.isRunning) 
                     MaterialTheme.colorScheme.surfaceVariant 
-                    else MaterialTheme.colorScheme.primary,
+                    else if (uiState.sessionType == SessionType.FOCUS) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary,
                 label = "ButtonColor"
             )
 
@@ -178,7 +174,7 @@ fun TimerScreen(
                     containerColor = buttonColor,
                     contentColor = if (uiState.isRunning) 
                         MaterialTheme.colorScheme.onSurfaceVariant 
-                        else MaterialTheme.colorScheme.onPrimary
+                        else if (uiState.sessionType == SessionType.FOCUS) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onTertiary
                 ),
                 shape = RoundedCornerShape(24.dp),
                 elevation = ButtonDefaults.buttonElevation(
@@ -188,7 +184,7 @@ fun TimerScreen(
                 enabled = uiState.hasPermissions || uiState.isRunning
             ) {
                 Text(
-                    text = if (uiState.isRunning) "PAUSE" else "START FOCUS",
+                    text = if (uiState.isRunning) "PAUSE" else if (uiState.sessionType == SessionType.FOCUS) "START FOCUS" else "START BREAK",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
