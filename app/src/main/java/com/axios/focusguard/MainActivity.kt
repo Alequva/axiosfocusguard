@@ -36,10 +36,12 @@ class MainActivity : ComponentActivity() {
         setContent {
             FocusGuardTheme {
                 Surface(
-                    modifier = Modifier.fillMaxSize().safeDrawingPadding(),
+                    modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    AppNavigation()
+                    androidx.compose.foundation.layout.Box(modifier = Modifier.safeDrawingPadding()) {
+                        AppNavigation()
+                    }
                 }
             }
         }

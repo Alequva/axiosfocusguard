@@ -16,9 +16,22 @@ class PermissionManager @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     fun isAccessibilityServiceEnabled(): Boolean {
-        val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
-        val enabledServices = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_GENERIC)
-        return enabledServices.any { it.resolveInfo.serviceInfo.packageName == context.packageName }
+        val expectedComponentName = "${context.packageName}/${FocusAccessibilityService::class.java.name}"
+        val enabledServices = Settings.Secure.getString(
+            context.contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return false
+
+        val colonSplitter = android.text.TextUtils.SimpleStringSplitter(':')
+        colonSplitter.setString(enabledServices)
+
+        while (colonSplitter.hasNext()) {
+            val componentName = colonSplitter.next()
+            if (componentName.equals(expectedComponentName, ignoreCase = true)) {
+                return true
+            }
+        }
+        return false
     }
 
     fun isOverlayPermissionGranted(): Boolean {
