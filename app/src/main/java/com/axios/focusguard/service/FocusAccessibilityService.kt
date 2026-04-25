@@ -23,6 +23,25 @@ class FocusAccessibilityService : AccessibilityService() {
     @Inject
     lateinit var focusManager: FocusManager
 
+    companion object {
+        var isServiceRunning = false
+    }
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        isServiceRunning = true
+    }
+
+    override fun onUnbind(intent: Intent?): Boolean {
+        isServiceRunning = false
+        return super.onUnbind(intent)
+    }
+
+    override fun onDestroy() {
+        isServiceRunning = false
+        super.onDestroy()
+    }
+
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     // M5: Debounce tracking to prevent multiple logs for a single app opening
@@ -35,6 +54,9 @@ class FocusAccessibilityService : AccessibilityService() {
             
             val packageName = event.packageName?.toString() ?: return
             
+            // Log for debugging
+            Log.v("FocusGuard", "Event from: $packageName")
+
             if (packageName == this.packageName || 
                 packageName == "com.android.systemui" || 
                 packageName == "android" ||
@@ -54,7 +76,7 @@ class FocusAccessibilityService : AccessibilityService() {
                         
                         // Only log if it's a different app or enough time has passed (2 seconds)
                         if (packageName != lastLoggedPackage || (currentTime - lastLogTime) > 2000) {
-                            Log.w("FocusGuard", "BLOCKED: $packageName. Redirecting to Axios...")
+                            Log.w("FocusGuard", "BLOCKED: $packageName. Force closing...")
                             
                             focusManager.currentSessionId.value?.let { sessionId ->
                                 repository.logSessionEvent(
@@ -70,17 +92,29 @@ class FocusAccessibilityService : AccessibilityService() {
                         
                         blockApp()
                     }
+                } else {
+                    // Log why we are not blocking if it's a known distractor
+                    if (repository.isPopularDistractor(packageName)) {
+                        Log.d("FocusGuard", "App $packageName is a distractor but focus is not active.")
+                    }
                 }
             }
         }
     }
 
     private fun blockApp() {
-        val intent = packageManager.getLaunchIntentForPackage(this.packageName)?.apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        }
-        if (intent != null) {
-            startActivity(intent)
+        // First, return to home screen (Forceful close effect)
+        performGlobalAction(GLOBAL_ACTION_HOME)
+        
+        // Second, show our blocker activity after a slight delay to allow home transition
+        serviceScope.launch {
+            kotlinx.coroutines.delay(300)
+            val intent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+            if (intent != null) {
+                startActivity(intent)
+            }
         }
     }
 

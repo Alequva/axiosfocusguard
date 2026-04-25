@@ -16,6 +16,11 @@ class PermissionManager @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     fun isAccessibilityServiceEnabled(): Boolean {
+        // First check if our service process is actually running
+        if (!FocusAccessibilityService.isServiceRunning) {
+            return false
+        }
+
         val expectedComponentName = "${context.packageName}/${FocusAccessibilityService::class.java.name}"
         val enabledServices = Settings.Secure.getString(
             context.contentResolver,

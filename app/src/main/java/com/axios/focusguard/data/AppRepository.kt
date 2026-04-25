@@ -67,7 +67,7 @@ class AppRepository @Inject constructor(
         }
     }
 
-    private fun isPopularDistractor(packageName: String): Boolean {
+    fun isPopularDistractor(packageName: String): Boolean {
         return socialPackages.contains(packageName) || videoPackages.contains(packageName)
     }
 

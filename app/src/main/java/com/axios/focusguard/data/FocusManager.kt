@@ -12,6 +12,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.*
+import com.axios.focusguard.util.Constants
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -50,7 +53,7 @@ class FocusManager @Inject constructor(
         }
 
         val currentState = _uiState.value
-        val newId = UUID.randomUUID().toString()
+        val newId = _currentSessionId.value ?: UUID.randomUUID().toString()
         _currentSessionId.value = newId
         _lastCompletedSessionId = newId
         
@@ -66,6 +69,11 @@ class FocusManager @Inject constructor(
         }
 
         _uiState.update { it.copy(isRunning = true) }
+        startTimerLogic()
+    }
+
+    private fun startTimerLogic() {
+        timerJob?.cancel()
         timerJob = scope.launch {
             while (_uiState.value.timeLeftSeconds > 0) {
                 delay(1000)
@@ -103,7 +111,7 @@ class FocusManager @Inject constructor(
     fun resetToStart() {
         pauseTimer()
         _currentSessionId.value = null
-        moveToState(SessionType.FOCUS, 25 * 60, 0)
+        moveToState(SessionType.FOCUS, Constants.FOCUS_DURATION_SEC, 0)
     }
 
     private fun onTimerFinished() {
@@ -130,13 +138,13 @@ class FocusManager @Inject constructor(
         val currentState = _uiState.value
         if (currentState.sessionType == SessionType.FOCUS) {
             val newCompletedCount = currentState.completedFocusSessions + 1
-            if (newCompletedCount % 4 == 0) {
-                moveToState(SessionType.LONG_BREAK, 15 * 60, newCompletedCount)
+            if (newCompletedCount % Constants.CYCLES_BEFORE_LONG == 0) {
+                moveToState(SessionType.LONG_BREAK, Constants.LONG_BREAK_SEC, newCompletedCount)
             } else {
-                moveToState(SessionType.SHORT_BREAK, 5 * 60, newCompletedCount)
+                moveToState(SessionType.SHORT_BREAK, Constants.SHORT_BREAK_SEC, newCompletedCount)
             }
         } else {
-            moveToState(SessionType.FOCUS, 25 * 60, currentState.completedFocusSessions)
+            moveToState(SessionType.FOCUS, Constants.FOCUS_DURATION_SEC, currentState.completedFocusSessions)
         }
         _currentSessionId.value = null
     }
