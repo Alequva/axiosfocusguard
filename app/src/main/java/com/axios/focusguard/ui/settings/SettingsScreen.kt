@@ -171,7 +171,7 @@ fun PermissionItem(title: String, isGranted: Boolean, onClick: () -> Unit) {
         Icon(
             imageVector = if (isGranted) Icons.Default.CheckCircle else Icons.Default.Warning,
             contentDescription = null,
-            tint = if (isGranted) Color(0xFF4CAF50) else Color(0xFFF44336)
+            tint = if (isGranted) MaterialTheme.colorScheme.primary else Color(0xFFF44336)
         )
         Spacer(modifier = Modifier.width(12.dp))
         Text(text = title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
@@ -229,6 +229,8 @@ fun AppItem(app: AppInfo, onToggle: () -> Unit) {
         Checkbox(checked = app.isBlocked, onCheckedChange = { onToggle() })
     }
 }
+
+
 
 private fun Drawable.toBitmap(): Bitmap {
     if (this is BitmapDrawable) return bitmap

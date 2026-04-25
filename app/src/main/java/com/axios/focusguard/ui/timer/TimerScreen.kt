@@ -7,14 +7,24 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import com.axios.focusguard.domain.model.TimerPreset
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -38,6 +48,12 @@ fun TimerScreen(
     viewModel: TimerViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val presets by viewModel.presets.collectAsState()
+    val selectedPresetId by viewModel.selectedPresetId.collectAsState()
+    
+    var showPresetsSheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState()
+    
     val lifecycleOwner = LocalLifecycleOwner.current
 
     DisposableEffect(lifecycleOwner) {
@@ -56,19 +72,7 @@ fun TimerScreen(
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.Top
-        ) {
-            IconButton(onClick = onSettingsClick) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = "Settings",
-                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-                )
-            }
-        }
+        // Removed top row with icons
 
         Column(
             modifier = Modifier.weight(1f),
@@ -84,11 +88,7 @@ fun TimerScreen(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier.size(300.dp)
             ) {
-                val totalSeconds = when (uiState.sessionType) {
-                    SessionType.FOCUS -> 25 * 60
-                    SessionType.SHORT_BREAK -> 5 * 60
-                    SessionType.LONG_BREAK -> 15 * 60
-                }
+                val totalSeconds = uiState.initialSessionSeconds
                 
                 // Clockwise Filling: 0.0 (start) up to 1.0 (end)
                 // We show how much time has ELAPSED to make it move clockwise left-to-right
@@ -162,35 +162,37 @@ fun TimerScreen(
 
             Spacer(modifier = Modifier.height(48.dp))
 
-            val buttonColor by animateColorAsState(
-                targetValue = if (uiState.isRunning) 
-                    MaterialTheme.colorScheme.surfaceVariant 
-                    else MaterialTheme.colorScheme.primary,
-                label = "ButtonColor"
-            )
-
-            Button(
-                onClick = { viewModel.toggleTimer() },
-                modifier = Modifier
-                    .height(80.dp)
-                    .width(200.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = buttonColor,
-                    contentColor = if (uiState.isRunning) 
-                        MaterialTheme.colorScheme.onSurfaceVariant 
-                        else MaterialTheme.colorScheme.onPrimary
-                ),
-                shape = RoundedCornerShape(24.dp),
-                elevation = ButtonDefaults.buttonElevation(
-                    defaultElevation = if (uiState.isRunning) 0.dp else 8.dp,
-                    pressedElevation = 2.dp
-                ),
-                enabled = uiState.hasPermissions || uiState.isRunning
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = if (uiState.isRunning) "PAUSE" else "START FOCUS",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+                // Presets Button
+                ActionButton(
+                    icon = Icons.Default.List,
+                    onClick = { showPresetsSheet = true },
+                    contentDescription = "Presets"
+                )
+
+                Spacer(modifier = Modifier.width(32.dp))
+
+                // Play/Pause Button
+                val playIcon = if (uiState.isRunning) Icons.Default.Pause else Icons.Default.PlayArrow
+                ActionButton(
+                    icon = playIcon,
+                    onClick = { viewModel.toggleTimer() },
+                    contentDescription = if (uiState.isRunning) "Pause" else "Play",
+                    isMain = true,
+                    enabled = uiState.hasPermissions || uiState.isRunning
+                )
+
+                Spacer(modifier = Modifier.width(32.dp))
+
+                // Settings Button
+                ActionButton(
+                    icon = Icons.Default.Settings,
+                    onClick = onSettingsClick,
+                    contentDescription = "Settings"
                 )
             }
             
@@ -205,11 +207,271 @@ fun TimerScreen(
         }
 
         Text(
-            text = "SESSION ${uiState.completedFocusSessions + 1} OF 4",
+            text = "SESSION ${uiState.completedFocusSessions + 1} OF ${uiState.totalRounds}",
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.outline,
             modifier = Modifier.padding(bottom = 32.dp),
             letterSpacing = 2.sp
+        )
+    }
+
+    if (showPresetsSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showPresetsSheet = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.background,
+            dragHandle = { BottomSheetDefaults.DragHandle(color = MaterialTheme.colorScheme.outline) }
+        ) {
+            PresetBottomSheetContent(
+                presets = presets,
+                selectedPresetId = selectedPresetId,
+                onSelect = { 
+                    viewModel.selectPreset(it)
+                    showPresetsSheet = false
+                },
+                onCreateCustom = { name, focus, breakTime, rounds ->
+                    viewModel.createCustomPreset(name, focus, breakTime, rounds)
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun PresetBottomSheetContent(
+    presets: List<TimerPreset>,
+    selectedPresetId: String,
+    onSelect: (String) -> Unit,
+    onCreateCustom: (String, Int, Int, Int) -> Unit
+) {
+    var showCreateDialog by remember { mutableStateOf(false) }
+    var infoPreset by remember { mutableStateOf<TimerPreset?>(null) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+            .navigationBarsPadding()
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Timer Presets",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold
+            )
+            IconButton(onClick = { showCreateDialog = true }) {
+                Icon(Icons.Default.Add, contentDescription = "Add Preset", tint = MaterialTheme.colorScheme.primary)
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Column(modifier = Modifier.fillMaxWidth()) {
+            presets.forEach { preset ->
+                PresetCard(
+                    preset = preset,
+                    isSelected = preset.id == selectedPresetId,
+                    onClick = { onSelect(preset.id) },
+                    onInfoClick = { infoPreset = preset }
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+        }
+    }
+
+    if (showCreateDialog) {
+        CreatePresetDialog(
+            onDismiss = { showCreateDialog = false },
+            onConfirm = { name, focus, breakTime, rounds ->
+                onCreateCustom(name, focus, breakTime, rounds)
+                showCreateDialog = false
+            }
+        )
+    }
+
+    infoPreset?.let { preset ->
+        PresetInfoDialog(
+            preset = preset,
+            onDismiss = { infoPreset = null }
+        )
+    }
+}
+
+@Composable
+fun PresetCard(
+    preset: TimerPreset,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    onInfoClick: () -> Unit
+) {
+    // Near background color, but greenish
+    val cardBg = if (isSelected) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+    } else {
+        Color(0xFF252B21) // Dark greenish
+    }
+    
+    val borderColor = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(cardBg)
+            .border(2.dp, borderColor, RoundedCornerShape(16.dp))
+            .clickable { onClick() }
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = preset.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "${preset.focusTimeMin}m focus • ${preset.breakTimeMin}m break • ${preset.rounds} rounds",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            if (preset.isInfo) {
+                IconButton(onClick = { 
+                    onInfoClick()
+                }) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Info",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CreatePresetDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String, Int, Int, Int) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var focusTime by remember { mutableStateOf("25") }
+    var breakTime by remember { mutableStateOf("5") }
+    var rounds by remember { mutableStateOf("4") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Create Custom Preset") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Preset Name") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = focusTime,
+                        onValueChange = { focusTime = it },
+                        label = { Text("Focus (min)") },
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    OutlinedTextField(
+                        value = breakTime,
+                        onValueChange = { breakTime = it },
+                        label = { Text("Break (min)") },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = rounds,
+                    onValueChange = { rounds = it },
+                    label = { Text("Rounds") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                val f = focusTime.toIntOrNull() ?: 25
+                val b = breakTime.toIntOrNull() ?: 5
+                val r = rounds.toIntOrNull() ?: 4
+                if (name.isNotBlank()) {
+                    onConfirm(name, f, b, r)
+                }
+            }) {
+                Text("Create")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun PresetInfoDialog(
+    preset: TimerPreset,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(preset.name) },
+        text = {
+            Text(preset.infoDescription ?: "No description available.")
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) {
+                Text("Got it")
+            }
+        }
+    )
+}
+
+@Composable
+fun ActionButton(
+    icon: ImageVector,
+    onClick: () -> Unit,
+    contentDescription: String,
+    isMain: Boolean = false,
+    enabled: Boolean = true
+) {
+    val size = if (isMain) 80.dp else 56.dp
+    val iconSize = if (isMain) 40.dp else 28.dp
+    val bgColor = Color(0xFF252B21) // Near background greenish
+    
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(bgColor)
+            .clickable(enabled = enabled) { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(iconSize),
+            tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
         )
     }
 }

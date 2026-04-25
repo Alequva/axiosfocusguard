@@ -10,19 +10,22 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import com.axios.focusguard.util.Constants
 import java.util.UUID
+import com.axios.focusguard.domain.model.TimerPreset
 import javax.inject.Inject
 import javax.inject.Singleton
 import javax.inject.Provider
 
 @Singleton
 class FocusManager @Inject constructor(
-    private val repositoryProvider: Provider<AppRepository>
+    private val repositoryProvider: Provider<AppRepository>,
+    private val presetRepository: PresetRepository
 ) {
     private val _uiState = MutableStateFlow(TimerUiState())
     val uiState: StateFlow<TimerUiState> = _uiState.asStateFlow()
@@ -35,9 +38,27 @@ class FocusManager @Inject constructor(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var timerJob: Job? = null
+    
+    private var activePreset: TimerPreset? = null
 
     val isFocusActive: Boolean
         get() = _uiState.value.isRunning && _uiState.value.sessionType == SessionType.FOCUS
+
+    init {
+        scope.launch {
+            combine(
+                presetRepository.getSelectedPresetId(),
+                presetRepository.getPresets()
+            ) { id, presets ->
+                presets.find { it.id == id } ?: presetRepository.defaultPresets.first()
+            }.collect { preset ->
+                activePreset = preset
+                if (!_uiState.value.isRunning) {
+                    resetToStart()
+                }
+            }
+        }
+    }
 
     fun toggleTimer() {
         if (_uiState.value.isRunning) {
@@ -111,7 +132,10 @@ class FocusManager @Inject constructor(
     fun resetToStart() {
         pauseTimer()
         _currentSessionId.value = null
-        moveToState(SessionType.FOCUS, Constants.FOCUS_DURATION_SEC, 0)
+        val preset = activePreset
+        val focusSec = (preset?.focusTimeMin ?: 25) * 60
+        val rounds = preset?.rounds ?: 4
+        moveToState(SessionType.FOCUS, focusSec, 0, rounds)
     }
 
     private fun onTimerFinished() {
@@ -136,25 +160,33 @@ class FocusManager @Inject constructor(
 
     private fun moveToNextSession() {
         val currentState = _uiState.value
+        val preset = activePreset
+        val focusSec = (preset?.focusTimeMin ?: 25) * 60
+        val breakSec = (preset?.breakTimeMin ?: 5) * 60
+        val longBreakSec = breakSec * 3 // or whatever default
+        val rounds = preset?.rounds ?: 4
+
         if (currentState.sessionType == SessionType.FOCUS) {
             val newCompletedCount = currentState.completedFocusSessions + 1
-            if (newCompletedCount % Constants.CYCLES_BEFORE_LONG == 0) {
-                moveToState(SessionType.LONG_BREAK, Constants.LONG_BREAK_SEC, newCompletedCount)
+            if (newCompletedCount % rounds == 0) {
+                moveToState(SessionType.LONG_BREAK, longBreakSec, newCompletedCount, rounds)
             } else {
-                moveToState(SessionType.SHORT_BREAK, Constants.SHORT_BREAK_SEC, newCompletedCount)
+                moveToState(SessionType.SHORT_BREAK, breakSec, newCompletedCount, rounds)
             }
         } else {
-            moveToState(SessionType.FOCUS, Constants.FOCUS_DURATION_SEC, currentState.completedFocusSessions)
+            moveToState(SessionType.FOCUS, focusSec, currentState.completedFocusSessions, rounds)
         }
         _currentSessionId.value = null
     }
 
-    private fun moveToState(type: SessionType, seconds: Int, completedCount: Int) {
+    private fun moveToState(type: SessionType, seconds: Int, completedCount: Int, totalRounds: Int) {
         _uiState.update {
             it.copy(
                 sessionType = type,
                 timeLeftSeconds = seconds,
+                initialSessionSeconds = seconds,
                 completedFocusSessions = completedCount,
+                totalRounds = totalRounds,
                 isRunning = false
             )
         }

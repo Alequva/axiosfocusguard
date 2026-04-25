@@ -6,8 +6,10 @@ enum class SessionType {
 
 data class TimerUiState(
     val timeLeftSeconds: Int = 25 * 60,
+    val initialSessionSeconds: Int = 25 * 60,
     val isRunning: Boolean = false,
     val sessionType: SessionType = SessionType.FOCUS,
     val completedFocusSessions: Int = 0,
+    val totalRounds: Int = 4,
     val hasPermissions: Boolean = false
 )
