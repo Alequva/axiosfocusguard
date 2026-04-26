@@ -9,5 +9,7 @@ data class SessionEvent(
     val sessionId: String, // Unique ID for the current Pomodoro focus session
     val packageName: String,
     val appName: String,
+    val category: String, // SOCIAL, VIDEO, GAME, etc.
+    val sessionOffsetSeconds: Int, // seconds into the session
     val timestamp: Long = System.currentTimeMillis()
 )

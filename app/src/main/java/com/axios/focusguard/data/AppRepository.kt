@@ -71,6 +71,14 @@ class AppRepository @Inject constructor(
         return socialPackages.contains(packageName) || videoPackages.contains(packageName)
     }
 
+    fun getCategory(packageName: String): AppCategory {
+        return when {
+            socialPackages.contains(packageName) -> AppCategory.SOCIAL
+            videoPackages.contains(packageName) -> AppCategory.VIDEO
+            else -> AppCategory.OTHER
+        }
+    }
+
     private val socialPackages = setOf(
         "com.zhiliaoapp.musically", "com.instagram.android", "com.facebook.katana",
         "com.twitter.android", "com.snapchat.android", "com.whatsapp", "com.reddit.frontpage"
@@ -81,8 +89,30 @@ class AppRepository @Inject constructor(
         "com.hulu.plus", "com.disney.disneyplus", "org.videolan.vlc"
     )
 
-    suspend fun logSessionEvent(sessionId: String, packageName: String, appName: String) {
-        sessionEventDao.insertEvent(SessionEvent(sessionId = sessionId, packageName = packageName, appName = appName))
+    suspend fun logSessionEvent(
+        sessionId: String, 
+        packageName: String, 
+        appName: String, 
+        category: String, 
+        offsetSeconds: Int
+    ) {
+        val lastEvent = sessionEventDao.getLastEventForApp(sessionId, packageName)
+        val currentTime = System.currentTimeMillis()
+        
+        // Anti-transition filter (800ms):
+        // Fine-tuned to catch slow transitions in heavy apps (Reddit, Instagram)
+        // while still capturing intentional rapid-fire user attempts.
+        if (lastEvent == null || (currentTime - lastEvent.timestamp) > 800) {
+            sessionEventDao.insertEvent(
+                SessionEvent(
+                    sessionId = sessionId, 
+                    packageName = packageName, 
+                    appName = appName,
+                    category = category,
+                    sessionOffsetSeconds = offsetSeconds
+                )
+            )
+        }
     }
 
     fun getEventsForSession(sessionId: String): Flow<List<SessionEvent>> = sessionEventDao.getEventsForSession(sessionId)

@@ -10,6 +10,9 @@ interface SessionEventDao {
     @Insert
     suspend fun insertEvent(event: SessionEvent)
 
+    @Query("SELECT * FROM session_events WHERE sessionId = :sessionId AND packageName = :packageName ORDER BY timestamp DESC LIMIT 1")
+    suspend fun getLastEventForApp(sessionId: String, packageName: String): SessionEvent?
+
     @Query("SELECT * FROM session_events WHERE sessionId = :sessionId")
     fun getEventsForSession(sessionId: String): Flow<List<SessionEvent>>
 
