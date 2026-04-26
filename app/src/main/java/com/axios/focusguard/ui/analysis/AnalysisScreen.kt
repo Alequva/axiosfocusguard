@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.luminance
 import androidx.hilt.navigation.compose.hiltViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -72,15 +73,12 @@ fun AnalysisScreen(
             } else {
                 if (uiState.events.isNotEmpty()) {
                     Text(
-                        text = "Session Statistics",
+                        text = "Distraction Bursts",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-
-                    val appAttempts = uiState.events.groupBy { it.appName }.mapValues { it.value.size }
-                    val maxAttempts = appAttempts.values.maxOrNull() ?: 1
 
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -90,38 +88,81 @@ fun AnalysisScreen(
                         shape = RoundedCornerShape(16.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            appAttempts.entries.sortedByDescending { it.value }.forEach { (appName, count) ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = appName,
-                                        modifier = Modifier.weight(0.35f),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Medium,
-                                        maxLines = 1
-                                    )
-                                    Box(
-                                        modifier = Modifier.weight(0.55f).height(24.dp).clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.surfaceVariant)
+                            uiState.events.groupBy { it.appName }.entries
+                                .map { entry -> entry.key to entry.value }
+                                .sortedByDescending { it.second.size }
+                                .forEach { (appName, events) ->
+                                    val count = events.size
+                                    val category = events.firstOrNull()?.category ?: "OTHER"
+                                    
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
+                                        Column(modifier = Modifier.weight(0.35f)) {
+                                            Text(
+                                                text = appName,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1
+                                            )
+                                            Text(
+                                                text = category,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
                                         Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth(count.toFloat() / maxAttempts.toFloat())
-                                                .fillMaxHeight()
-                                                .clip(RoundedCornerShape(4.dp))
-                                                .background(MaterialTheme.colorScheme.primary)
+                                            modifier = Modifier.weight(0.55f).height(24.dp).clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.surfaceVariant)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth(count.toFloat() / (uiState.events.groupBy { it.appName }.values.maxOfOrNull { it.size } ?: 1).toFloat())
+                                                    .fillMaxHeight()
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .background(MaterialTheme.colorScheme.primary)
+                                            )
+                                        }
+                                        Text(
+                                            text = count.toString(),
+                                            modifier = Modifier.weight(0.1f).padding(start = 8.dp),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            textAlign = TextAlign.End
                                         )
                                     }
-                                    Text(
-                                        text = count.toString(),
-                                        modifier = Modifier.weight(0.1f).padding(start = 8.dp),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        textAlign = TextAlign.End
-                                    )
                                 }
-                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Text(
+                        text = "Session Timeline",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                        ),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(24.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            val early = uiState.events.count { it.sessionOffsetSeconds < 500 }
+                            val mid = uiState.events.count { it.sessionOffsetSeconds in 500..1000 }
+                            val late = uiState.events.count { it.sessionOffsetSeconds > 1000 }
+
+                            TimelineStat("Early", early, MaterialTheme.colorScheme.primary)
+                            TimelineStat("Mid", mid, MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
+                            TimelineStat("Late", late, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
                         }
                     }
 
@@ -165,5 +206,26 @@ fun AnalysisScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun TimelineStat(label: String, count: Int, color: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .size(width = 60.dp, height = 40.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(color),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = count.toString(),
+                color = if (color.luminance() > 0.5f) Color.Black else Color.White,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(text = label, style = MaterialTheme.typography.labelMedium)
     }
 }

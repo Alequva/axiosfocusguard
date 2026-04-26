@@ -57,6 +57,14 @@ class AppRepository @Inject constructor(
             .sortedWith(compareBy({ it.category }, { it.name }))
     }
 
+    fun getCategory(packageName: String): AppCategory {
+        return when {
+            socialPackages.contains(packageName) -> AppCategory.SOCIAL
+            videoPackages.contains(packageName) -> AppCategory.VIDEO
+            else -> AppCategory.OTHER
+        }
+    }
+
     private fun getCategory(app: ApplicationInfo): AppCategory {
         return when {
             app.category == ApplicationInfo.CATEGORY_GAME -> AppCategory.GAME
@@ -81,8 +89,28 @@ class AppRepository @Inject constructor(
         "com.hulu.plus", "com.disney.disneyplus", "org.videolan.vlc"
     )
 
-    suspend fun logSessionEvent(sessionId: String, packageName: String, appName: String) {
-        sessionEventDao.insertEvent(SessionEvent(sessionId = sessionId, packageName = packageName, appName = appName))
+    suspend fun logSessionEvent(
+        sessionId: String, 
+        packageName: String, 
+        appName: String, 
+        category: String,
+        offsetSeconds: Int
+    ) {
+        val lastEvent = sessionEventDao.getLastEventForApp(sessionId, packageName)
+        val currentTime = System.currentTimeMillis()
+        
+        // Burst grouping: Only log if no previous event OR more than 10s since last event for this app
+        if (lastEvent == null || (currentTime - lastEvent.timestamp) > 10000) {
+            sessionEventDao.insertEvent(
+                SessionEvent(
+                    sessionId = sessionId, 
+                    packageName = packageName, 
+                    appName = appName,
+                    category = category,
+                    sessionOffsetSeconds = offsetSeconds
+                )
+            )
+        }
     }
 
     fun getEventsForSession(sessionId: String): Flow<List<SessionEvent>> = sessionEventDao.getEventsForSession(sessionId)

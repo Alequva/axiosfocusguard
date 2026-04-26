@@ -70,9 +70,16 @@ class TimerViewModel @Inject constructor(
     }
 
     fun checkPermissions() {
-        val hasAll = permissionManager.isAccessibilityServiceEnabled() && 
-                     permissionManager.isOverlayPermissionGranted()
-        focusManager.updatePermissionStatus(hasAll)
+        val settingsEnabled = permissionManager.isAccessibilityServiceEnabled()
+        val trulyActive = permissionManager.isServiceTrulyActive()
+        val stalled = permissionManager.isServiceStalled()
+        val overlayGranted = permissionManager.isOverlayPermissionGranted()
+        val batteryExempt = permissionManager.isBatteryOptimizationIgnored()
+        
+        // Timer only starts if truly active and other perms granted
+        val hasAll = settingsEnabled && trulyActive && overlayGranted
+        
+        focusManager.updateServiceStatus(hasAll, stalled, batteryExempt)
     }
 
     fun toggleTimer() {

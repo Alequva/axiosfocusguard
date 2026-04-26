@@ -29,14 +29,37 @@ class AiRepository @Inject constructor() {
             return@withContext "Perfect focus! You didn't try to open any distracting apps. You're a productivity machine. Keep this momentum for your next session!"
         }
 
+        val totalEvents = events.size
+        val categories = events.groupBy { it.category }.mapValues { it.value.size }
         val appAttempts = events.groupBy { it.appName }.mapValues { it.value.size }
+        
+        // Timing breakdown: Early (first 1/3), Mid (second 1/3), Late (last 1/3)
+        // Assuming 25 min default if initialSessionSeconds not available in event
+        val timingBreakdown = events.groupBy { 
+            when {
+                it.sessionOffsetSeconds < 500 -> "Early"
+                it.sessionOffsetSeconds < 1000 -> "Mid"
+                else -> "Late"
+            }
+        }.mapValues { it.value.size }
+
         val prompt = """
-            You are a productivity coach for a student using a Pomodoro focus app.
-            During a 25-minute focus session, the user tried to open the following distracting apps:
-            ${appAttempts.entries.joinToString { "${it.key}: ${it.value} times" }}
+            You are a productivity coach for a user using a focus app.
+            In this session, the user had $totalEvents distraction bursts (consecutive attempts grouped).
+            
+            App Breakdown:
+            ${appAttempts.entries.joinToString { "${it.key}: ${it.value} bursts" }}
+            
+            Category Breakdown:
+            ${categories.entries.joinToString { "${it.key}: ${it.value} events" }}
+            
+            Timing Distribution:
+            ${timingBreakdown.entries.joinToString { "${it.key}: ${it.value} distractions" }}
             
             Provide a short, punchy, and slightly sarcastic analysis of their focus. 
-            Then, give 2 specific recommendations on how they can improve for the next session.
+            Identify if they crack early or lose steam at the end.
+            Mention if they gravitate towards specific categories like SOCIAL or VIDEO.
+            Then, give 2 specific recommendations for the next session.
             Keep the total response under 100 words.
         """.trimIndent()
 

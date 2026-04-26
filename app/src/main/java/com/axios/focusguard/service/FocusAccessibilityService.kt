@@ -30,6 +30,17 @@ class FocusAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         isServiceRunning = true
+        startHeartbeat()
+    }
+
+    private fun startHeartbeat() {
+        serviceScope.launch {
+            val prefs = getSharedPreferences("service_health", android.content.Context.MODE_PRIVATE)
+            while (true) {
+                prefs.edit().putLong("last_heartbeat", System.currentTimeMillis()).apply()
+                kotlinx.coroutines.delay(5000)
+            }
+        }
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
@@ -44,13 +55,8 @@ class FocusAccessibilityService : AccessibilityService() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    // M5: Debounce tracking to prevent multiple logs for a single app opening
-    private var lastLoggedPackage: String? = null
-    private var lastLogTime: Long = 0
-
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
-        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || 
-            event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             
             val packageName = event.packageName?.toString() ?: return
             
@@ -72,22 +78,20 @@ class FocusAccessibilityService : AccessibilityService() {
                     val blockedApp = blockedApps.find { it.packageName == packageName }
                     
                     if (blockedApp != null) {
-                        val currentTime = System.currentTimeMillis()
+                        Log.w("FocusGuard", "BLOCKED: $packageName")
                         
-                        // Only log if it's a different app or enough time has passed (2 seconds)
-                        if (packageName != lastLoggedPackage || (currentTime - lastLogTime) > 2000) {
-                            Log.w("FocusGuard", "BLOCKED: $packageName. Force closing...")
-                            
-                            focusManager.currentSessionId.value?.let { sessionId ->
-                                repository.logSessionEvent(
-                                    sessionId = sessionId,
-                                    packageName = packageName,
-                                    appName = blockedApp.appName
-                                )
-                            }
-                            
-                            lastLoggedPackage = packageName
-                            lastLogTime = currentTime
+                        focusManager.currentSessionId.value?.let { sessionId ->
+                            val timerState = focusManager.uiState.value
+                            val offset = timerState.initialSessionSeconds - timerState.timeLeftSeconds
+                            val category = repository.getCategory(packageName).name
+
+                            repository.logSessionEvent(
+                                sessionId = sessionId,
+                                packageName = packageName,
+                                appName = blockedApp.appName,
+                                category = category,
+                                offsetSeconds = offset
+                            )
                         }
                         
                         blockApp()

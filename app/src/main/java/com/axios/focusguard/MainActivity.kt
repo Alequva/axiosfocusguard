@@ -46,6 +46,15 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        // Force a permission check on return
+        try {
+            val viewModel = androidx.lifecycle.ViewModelProvider(this)[com.axios.focusguard.ui.timer.TimerViewModel::class.java]
+            viewModel.checkPermissions()
+        } catch (e: Exception) {}
+    }
 }
 
 @Composable

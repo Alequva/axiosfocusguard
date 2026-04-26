@@ -11,5 +11,7 @@ data class TimerUiState(
     val sessionType: SessionType = SessionType.FOCUS,
     val completedFocusSessions: Int = 0,
     val totalRounds: Int = 4,
-    val hasPermissions: Boolean = false
+    val hasPermissions: Boolean = false,
+    val isServiceStalled: Boolean = false,
+    val hasBatteryExemption: Boolean = false
 )

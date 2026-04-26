@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import androidx.datastore.core.DataStore
@@ -25,8 +26,17 @@ import javax.inject.Provider
 @Singleton
 class FocusManager @Inject constructor(
     private val repositoryProvider: Provider<AppRepository>,
-    private val presetRepository: PresetRepository
+    private val presetRepository: PresetRepository,
+    private val dataStore: DataStore<Preferences>
 ) {
+    private companion object {
+        val IS_RUNNING_KEY = booleanPreferencesKey("is_running")
+        val TIME_LEFT_KEY = intPreferencesKey("time_left")
+        val SESSION_TYPE_KEY = stringPreferencesKey("session_type")
+        val COMPLETED_SESSIONS_KEY = intPreferencesKey("completed_sessions")
+        val CURRENT_SESSION_ID_KEY = stringPreferencesKey("current_session_id")
+        val INITIAL_SESSION_SECONDS_KEY = intPreferencesKey("initial_session_seconds")
+    }
     private val _uiState = MutableStateFlow(TimerUiState())
     val uiState: StateFlow<TimerUiState> = _uiState.asStateFlow()
 
@@ -46,15 +56,68 @@ class FocusManager @Inject constructor(
 
     init {
         scope.launch {
+            // 1. Restore state from DataStore first
+            val prefs = dataStore.data.first()
+            val isRunning = prefs[IS_RUNNING_KEY] ?: false
+            val timeLeft = prefs[TIME_LEFT_KEY] ?: (25 * 60)
+            val typeName = prefs[SESSION_TYPE_KEY] ?: SessionType.FOCUS.name
+            val completed = prefs[COMPLETED_SESSIONS_KEY] ?: 0
+            val sessionId = prefs[CURRENT_SESSION_ID_KEY]
+            val initialSec = prefs[INITIAL_SESSION_SECONDS_KEY] ?: timeLeft
+
+            _uiState.update { 
+                it.copy(
+                    isRunning = isRunning,
+                    timeLeftSeconds = timeLeft,
+                    sessionType = SessionType.valueOf(typeName),
+                    completedFocusSessions = completed,
+                    initialSessionSeconds = initialSec
+                )
+            }
+            _currentSessionId.value = sessionId
+            _lastCompletedSessionId = sessionId
+
+            // 2. Start observing presets
             combine(
                 presetRepository.getSelectedPresetId(),
                 presetRepository.getPresets()
             ) { id, presets ->
                 presets.find { it.id == id } ?: presetRepository.defaultPresets.first()
             }.collect { preset ->
+                val previousPresetId = activePreset?.id
                 activePreset = preset
-                if (!_uiState.value.isRunning) {
+                
+                // Only reset timer if NOT running AND (no active session OR preset actually changed)
+                if (!_uiState.value.isRunning && 
+                    (_currentSessionId.value == null || previousPresetId != preset.id)) {
                     resetToStart()
+                }
+            }
+        }
+
+        // Separate launch for timer logic to avoid blocking init
+        scope.launch {
+            delay(500) // Give init a moment
+            if (_uiState.value.isRunning) {
+                startTimerLogic()
+            }
+        }
+    }
+
+    private fun persistState() {
+        val state = _uiState.value
+        val sessionId = _currentSessionId.value
+        scope.launch {
+            dataStore.edit { prefs ->
+                prefs[IS_RUNNING_KEY] = state.isRunning
+                prefs[TIME_LEFT_KEY] = state.timeLeftSeconds
+                prefs[SESSION_TYPE_KEY] = state.sessionType.name
+                prefs[COMPLETED_SESSIONS_KEY] = state.completedFocusSessions
+                prefs[INITIAL_SESSION_SECONDS_KEY] = state.initialSessionSeconds
+                if (sessionId != null) {
+                    prefs[CURRENT_SESSION_ID_KEY] = sessionId
+                } else {
+                    prefs.remove(CURRENT_SESSION_ID_KEY)
                 }
             }
         }
@@ -90,6 +153,7 @@ class FocusManager @Inject constructor(
         }
 
         _uiState.update { it.copy(isRunning = true) }
+        persistState()
         startTimerLogic()
     }
 
@@ -99,6 +163,10 @@ class FocusManager @Inject constructor(
             while (_uiState.value.timeLeftSeconds > 0) {
                 delay(1000)
                 _uiState.update { it.copy(timeLeftSeconds = it.timeLeftSeconds - 1) }
+                // Persist every 5 seconds to avoid too many writes
+                if (_uiState.value.timeLeftSeconds % 5 == 0) {
+                    persistState()
+                }
             }
             onTimerFinished()
         }
@@ -107,6 +175,7 @@ class FocusManager @Inject constructor(
     private fun pauseTimer() {
         timerJob?.cancel()
         _uiState.update { it.copy(isRunning = false) }
+        persistState()
     }
 
     fun finishSessionEarly() {
@@ -190,9 +259,14 @@ class FocusManager @Inject constructor(
                 isRunning = false
             )
         }
+        persistState()
     }
     
-    fun updatePermissionStatus(hasPermissions: Boolean) {
-        _uiState.update { it.copy(hasPermissions = hasPermissions) }
+    fun updateServiceStatus(hasPermissions: Boolean, isStalled: Boolean, hasBatteryExemption: Boolean) {
+        _uiState.update { it.copy(
+            hasPermissions = hasPermissions,
+            isServiceStalled = isStalled,
+            hasBatteryExemption = hasBatteryExemption
+        ) }
     }
 }

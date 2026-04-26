@@ -1,5 +1,7 @@
 package com.axios.focusguard.ui.timer
 
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -53,6 +55,7 @@ fun TimerScreen(
     
     var showPresetsSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
+    val context = androidx.compose.ui.platform.LocalContext.current
     
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -79,8 +82,23 @@ fun TimerScreen(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (!uiState.hasPermissions && !uiState.isRunning) {
-                PermissionWarning(onClick = onSettingsClick)
+            if (!uiState.hasBatteryExemption && !uiState.isRunning) {
+                BatteryOptimizationWarning(
+                    onClick = {
+                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                            data = android.net.Uri.parse("package:${context.packageName}")
+                        }
+                        context.startActivity(intent)
+                    }
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            if ((!uiState.hasPermissions || uiState.isServiceStalled) && !uiState.isRunning) {
+                PermissionWarning(
+                    isStalled = uiState.isServiceStalled,
+                    onClick = onSettingsClick
+                )
                 Spacer(modifier = Modifier.height(32.dp))
             }
 
@@ -477,33 +495,71 @@ fun ActionButton(
 }
 
 @Composable
-fun PermissionWarning(onClick: () -> Unit) {
+fun PermissionWarning(isStalled: Boolean, onClick: () -> Unit) {
+    val bgColor = if (isStalled) MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+    val tint = if (isStalled) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error
+    val text = if (isStalled) "Accessibility service is malfunctioning" else "Permissions required to block apps"
+    val buttonText = if (isStalled) "RESTART SERVICE" else "FIX IN SETTINGS"
+    val buttonColor = if (isStalled) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f))
+            .background(bgColor)
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Icon(
-            imageVector = Icons.Default.Warning,
+            imageVector = if (isStalled) Icons.Default.Info else Icons.Default.Warning,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.error
+            tint = tint
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Permissions required to block apps",
+            text = text,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onErrorContainer,
+            color = if (isStalled) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onErrorContainer,
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(12.dp))
         Button(
             onClick = onClick,
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            colors = ButtonDefaults.buttonColors(containerColor = buttonColor)
         ) {
-            Text("FIX IN SETTINGS", color = MaterialTheme.colorScheme.onError)
+            Text(buttonText, color = if (isStalled) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onError)
+        }
+    }
+}
+
+@Composable
+fun BatteryOptimizationWarning(onClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f))
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = Icons.Default.Info,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.secondary
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Exclude from battery optimization to prevent service from being killed",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Button(
+            onClick = onClick,
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+        ) {
+            Text("ALLOW EXEMPTION", color = MaterialTheme.colorScheme.onSecondary)
         }
     }
 }
