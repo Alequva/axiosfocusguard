@@ -96,10 +96,13 @@ fun ResultsScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = if (totalBursts == 0) 
-                                "You didn't have any distraction bursts." 
-                                else "You had $totalBursts distraction impulses (${rawEvents.size} total taps).",
+                                "You stayed perfectly focused!" 
+                                else "${rawEvents.size} attempts in $totalBursts bursts",
                             textAlign = TextAlign.Center,
-                            style = MaterialTheme.typography.bodyMedium
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = if (totalBursts == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                            )
                         )
                         
                         if (totalBursts > 0) {
@@ -225,7 +228,7 @@ fun AppViolationSummary(appName: String, events: List<SessionEvent>) {
                     )
                 }
                 Text(
-                    text = "${events.size} bursts",
+                    text = if (events.size > 1) "${events.size} attempts" else "1 attempt",
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.labelLarge
                 )

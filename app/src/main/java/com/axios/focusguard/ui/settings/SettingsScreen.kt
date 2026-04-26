@@ -94,9 +94,9 @@ fun SettingsScreen(
         ) {
             item {
                 PermissionSection(
-                    isAccessibilityEnabled = uiState.isAccessibilityEnabled,
+                    isUsageEnabled = uiState.isUsageEnabled,
                     isOverlayEnabled = uiState.isOverlayEnabled,
-                    onAccessibilityClick = { viewModel.openAccessibilitySettings() },
+                    onUsageClick = { viewModel.openUsageSettings() },
                     onOverlayClick = { viewModel.openOverlaySettings() }
                 )
             }
@@ -135,9 +135,9 @@ fun SettingsScreen(
 
 @Composable
 fun PermissionSection(
-    isAccessibilityEnabled: Boolean,
+    isUsageEnabled: Boolean,
     isOverlayEnabled: Boolean,
-    onAccessibilityClick: () -> Unit,
+    onUsageClick: () -> Unit,
     onOverlayClick: () -> Unit
 ) {
     Column(
@@ -152,9 +152,9 @@ fun PermissionSection(
         Spacer(modifier = Modifier.height(12.dp))
         
         PermissionItem(
-            title = "Accessibility Service",
-            isGranted = isAccessibilityEnabled,
-            onClick = onAccessibilityClick
+            title = "Usage Access",
+            isGranted = isUsageEnabled,
+            onClick = onUsageClick
         )
         Spacer(modifier = Modifier.height(8.dp))
         PermissionItem(

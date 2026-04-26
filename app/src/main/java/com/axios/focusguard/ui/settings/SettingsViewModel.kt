@@ -16,7 +16,7 @@ import javax.inject.Inject
 data class SettingsUiState(
     val apps: List<AppInfo> = emptyList(),
     val isLoading: Boolean = true,
-    val isAccessibilityEnabled: Boolean = false,
+    val isUsageEnabled: Boolean = false,
     val isOverlayEnabled: Boolean = false
 )
 
@@ -36,12 +36,12 @@ class SettingsViewModel @Inject constructor(
 
     fun updatePermissions() {
         _uiState.update { it.copy(
-            isAccessibilityEnabled = permissionManager.isAccessibilityServiceEnabled(),
+            isUsageEnabled = permissionManager.isUsageStatsPermissionGranted(),
             isOverlayEnabled = permissionManager.isOverlayPermissionGranted()
         )}
     }
 
-    fun openAccessibilitySettings() = permissionManager.openAccessibilitySettings()
+    fun openUsageSettings() = permissionManager.openUsageSettings()
     fun openOverlaySettings() = permissionManager.openOverlaySettings()
 
     private fun loadApps() {

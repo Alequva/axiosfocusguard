@@ -492,12 +492,18 @@ fun PermissionWarning(onClick: () -> Unit) {
             tint = MaterialTheme.colorScheme.error
         )
         Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Permissions required to block apps",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onErrorContainer,
-            textAlign = TextAlign.Center
-        )
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = "Usage Access Required",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.error
+            )
+            Text(
+                text = "Grant access to block distracting apps",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
         Spacer(modifier = Modifier.height(12.dp))
         Button(
             onClick = onClick,

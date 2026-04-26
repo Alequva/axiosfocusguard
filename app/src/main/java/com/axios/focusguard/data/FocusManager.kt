@@ -18,13 +18,17 @@ import androidx.datastore.preferences.core.*
 import com.axios.focusguard.util.Constants
 import java.util.UUID
 import com.axios.focusguard.domain.model.TimerPreset
+import android.content.Context
+import android.content.Intent
+import com.axios.focusguard.service.FocusForegroundService
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
-import javax.inject.Provider
 
 @Singleton
 class FocusManager @Inject constructor(
-    private val repositoryProvider: Provider<AppRepository>,
+    @ApplicationContext private val context: Context,
+    private val repository: AppRepository,
     private val presetRepository: PresetRepository
 ) {
     private val _uiState = MutableStateFlow(TimerUiState())
@@ -79,7 +83,7 @@ class FocusManager @Inject constructor(
         _lastCompletedSessionId = newId
         
         scope.launch {
-            repositoryProvider.get().saveFocusSession(
+            repository.saveFocusSession(
                 FocusSession(
                     sessionId = newId,
                     startTime = System.currentTimeMillis(),
@@ -90,7 +94,26 @@ class FocusManager @Inject constructor(
         }
 
         _uiState.update { it.copy(isRunning = true) }
+        
+        // Start Foreground Service for blocking if it's a FOCUS session
+        if (currentState.sessionType == SessionType.FOCUS) {
+            startBlockingService()
+        }
+        
         startTimerLogic()
+    }
+
+    private fun startBlockingService() {
+        val intent = Intent(context, FocusForegroundService::class.java)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            context.startForegroundService(intent)
+        } else {
+            context.startService(intent)
+        }
+    }
+
+    private fun stopBlockingService() {
+        context.stopService(Intent(context, FocusForegroundService::class.java))
     }
 
     private fun startTimerLogic() {
@@ -107,6 +130,7 @@ class FocusManager @Inject constructor(
     private fun pauseTimer() {
         timerJob?.cancel()
         _uiState.update { it.copy(isRunning = false) }
+        stopBlockingService()
     }
 
     fun finishSessionEarly() {
@@ -115,7 +139,7 @@ class FocusManager @Inject constructor(
         
         scope.launch {
             sessionId?.let { id ->
-                repositoryProvider.get().saveFocusSession(
+                repository.saveFocusSession(
                     FocusSession(
                         sessionId = id,
                         startTime = 0, 
@@ -144,7 +168,7 @@ class FocusManager @Inject constructor(
         
         scope.launch {
             sessionId?.let { id ->
-                repositoryProvider.get().saveFocusSession(
+                repository.saveFocusSession(
                     FocusSession(
                         sessionId = id,
                         startTime = 0, 

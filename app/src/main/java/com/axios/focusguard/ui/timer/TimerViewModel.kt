@@ -70,7 +70,7 @@ class TimerViewModel @Inject constructor(
     }
 
     fun checkPermissions() {
-        val hasAll = permissionManager.isAccessibilityServiceEnabled() && 
+        val hasAll = permissionManager.isUsageStatsPermissionGranted() && 
                      permissionManager.isOverlayPermissionGranted()
         focusManager.updatePermissionStatus(hasAll)
     }
