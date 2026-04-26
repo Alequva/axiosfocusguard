@@ -33,7 +33,7 @@ fun AnalysisScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("AI Insights") },
+                title = { Text("Session Deep Dive") },
                 navigationIcon = {
                     IconButton(onClick = onNextSession) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -50,14 +50,13 @@ fun AnalysisScreen(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = "Session Deep Dive",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.fillMaxWidth()
-            )
-            
-            Spacer(modifier = Modifier.height(24.dp))
+//            Text(
+//                text = "Session Deep Dive",
+//                style = MaterialTheme.typography.headlineSmall,
+//                fontWeight = FontWeight.Bold,
+//                modifier = Modifier.fillMaxWidth()
+//            )
+//            Spacer(modifier = Modifier.height(24.dp))
 
             if (uiState.isLoading) {
                 Column(
@@ -127,6 +126,15 @@ fun AnalysisScreen(
 
                     Spacer(modifier = Modifier.height(32.dp))
                 }
+
+                Text(
+                    text = "AI review and recommendations",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),

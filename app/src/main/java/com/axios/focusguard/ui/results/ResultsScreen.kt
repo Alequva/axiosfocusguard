@@ -64,7 +64,19 @@ fun ResultsScreen(
                     CircularProgressIndicator()
                 }
             } else {
-                val totalAttempts = uiState.events.size
+                val rawEvents = uiState.events
+                // Helper to count bursts (10s grouping)
+                val totalBursts = mutableListOf<Long>().apply {
+                    rawEvents.groupBy { it.packageName }.forEach { (_, events) ->
+                        var lastT: Long = 0
+                        events.sortedBy { it.timestamp }.forEach { e ->
+                            if (e.timestamp - lastT > 10000) {
+                                add(e.timestamp)
+                            }
+                            lastT = e.timestamp
+                        }
+                    }
+                }.size
                 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -77,18 +89,34 @@ fun ResultsScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = if (totalAttempts == 0) "Perfect Focus!" else "Session Complete",
+                            text = if (totalBursts == 0) "Perfect Focus!" else "Session Complete",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = if (totalAttempts == 0) 
-                                "You didn't open any distracting apps." 
-                                else "You tried to open distractors $totalAttempts times.",
+                            text = if (totalBursts == 0) 
+                                "You didn't have any distraction bursts." 
+                                else "You had $totalBursts distraction impulses (${rawEvents.size} total taps).",
                             textAlign = TextAlign.Center,
                             style = MaterialTheme.typography.bodyMedium
                         )
+                        
+                        if (totalBursts > 0) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            val early = uiState.events.count { it.sessionOffsetSeconds < 300 }
+                            val late = uiState.events.count { it.sessionOffsetSeconds > 1200 }
+                            val mid = totalBursts - early - late
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly
+                            ) {
+                                TimelineStat("Early", early)
+                                TimelineStat("Mid", mid)
+                                TimelineStat("Late", late)
+                            }
+                        }
                     }
                 }
 
@@ -108,9 +136,29 @@ fun ResultsScreen(
                             .weight(1f)
                             .fillMaxWidth()
                     ) {
-                        val grouped = uiState.events.groupBy { it.appName }
-                        items(grouped.toList()) { (appName, appEvents) ->
-                            AppViolationSummary(appName, appEvents)
+                        // Group raw events into 10s bursts for display
+                        val allBursts = mutableListOf<List<SessionEvent>>()
+                        uiState.events.groupBy { it.packageName }.forEach { (_, appEvents) ->
+                            val sorted = appEvents.sortedBy { it.timestamp }
+                            var currentBurst = mutableListOf<SessionEvent>()
+                            sorted.forEach { event ->
+                                if (currentBurst.isEmpty()) {
+                                    currentBurst.add(event)
+                                } else {
+                                    val lastEvent = currentBurst.last()
+                                    if (event.timestamp - lastEvent.timestamp < 10000) {
+                                        currentBurst.add(event)
+                                    } else {
+                                        allBursts.add(currentBurst)
+                                        currentBurst = mutableListOf(event)
+                                    }
+                                }
+                            }
+                            if (currentBurst.isNotEmpty()) allBursts.add(currentBurst)
+                        }
+
+                        items(allBursts.sortedByDescending { it.first().timestamp }) { burstEvents ->
+                            AppViolationSummary(burstEvents.first().appName, burstEvents)
                             Spacer(modifier = Modifier.height(8.dp))
                         }
                     }
@@ -147,8 +195,16 @@ fun ResultsScreen(
 }
 
 @Composable
+fun TimelineStat(label: String, count: Int) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+        Text(text = count.toString(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
 fun AppViolationSummary(appName: String, events: List<SessionEvent>) {
-    val timeFormatter = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
+    val category = events.firstOrNull()?.category ?: "OTHER"
     
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -160,16 +216,24 @@ fun AppViolationSummary(appName: String, events: List<SessionEvent>) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = appName, fontWeight = FontWeight.Bold)
+                Column {
+                    Text(text = appName, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = category,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
                 Text(
-                    text = "${events.size} attempts",
+                    text = "${events.size} bursts",
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.labelLarge
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
+            val firstBurst = events.minOf { it.sessionOffsetSeconds } / 60
             Text(
-                text = "Last attempt at ${timeFormatter.format(Date(events.maxOf { it.timestamp }))}",
+                text = "First distracted at ${firstBurst}m into session",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.outline
             )

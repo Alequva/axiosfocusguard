@@ -29,13 +29,48 @@ class AiRepository @Inject constructor() {
             return@withContext "Perfect focus! You didn't try to open any distracting apps. You're a productivity machine. Keep this momentum for your next session!"
         }
 
-        val appAttempts = events.groupBy { it.appName }.mapValues { it.value.size }
+        // 1. Calculate Bursts (Group events by app and then by 10s proximity)
+        val bursts = mutableListOf<List<SessionEvent>>()
+        events.groupBy { it.packageName }.forEach { (_, appEvents) ->
+            val sorted = appEvents.sortedBy { it.timestamp }
+            var currentBurst = mutableListOf<SessionEvent>()
+            
+            sorted.forEach { event ->
+                if (currentBurst.isEmpty()) {
+                    currentBurst.add(event)
+                } else {
+                    val lastEvent = currentBurst.last()
+                    if (event.timestamp - lastEvent.timestamp < 10000) {
+                        currentBurst.add(event)
+                    } else {
+                        bursts.add(currentBurst)
+                        currentBurst = mutableListOf(event)
+                    }
+                }
+            }
+            if (currentBurst.isNotEmpty()) bursts.add(currentBurst)
+        }
+
+        val totalBursts = bursts.size
+        val totalRawAttempts = events.size
+        val topCategory = events.groupBy { it.category }.maxByOrNull { it.value.size }?.key ?: "OTHER"
+        
+        // 2. Identify frantic behavior
+        val maxTapsInBurst = bursts.maxOfOrNull { it.size } ?: 0
+        val franticInfo = if (maxTapsInBurst >= 5) {
+            "Note: The user had a very frantic burst with $maxTapsInBurst taps in a single impulse."
+        } else ""
+
         val prompt = """
             You are a productivity coach for a student using a Pomodoro focus app.
-            During a 25-minute focus session, the user tried to open the following distracting apps:
-            ${appAttempts.entries.joinToString { "${it.key}: ${it.value} times" }}
+            Session Data:
+            - Total Distraction Impulses (Bursts): $totalBursts
+            - Total Raw Attempts (Taps): $totalRawAttempts
+            - Top Distractor Category: $topCategory
+            $franticInfo
             
             Provide a short, punchy, and slightly sarcastic analysis of their focus. 
+            Mention the frantic behavior if applicable.
             Then, give 2 specific recommendations on how they can improve for the next session.
             Keep the total response under 100 words.
         """.trimIndent()

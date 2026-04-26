@@ -100,8 +100,8 @@ class AppRepository @Inject constructor(
         val currentTime = System.currentTimeMillis()
         
         // Anti-transition filter (800ms):
-        // Fine-tuned to catch slow transitions in heavy apps (Reddit, Instagram)
-        // while still capturing intentional rapid-fire user attempts.
+        // Logs every individual tap as a raw attempt, while filtering internal
+        // app transitions. Burst grouping is handled at the UI/AI level.
         if (lastEvent == null || (currentTime - lastEvent.timestamp) > 800) {
             sessionEventDao.insertEvent(
                 SessionEvent(
