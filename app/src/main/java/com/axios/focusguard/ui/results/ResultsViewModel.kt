@@ -14,6 +14,7 @@ import javax.inject.Inject
 
 data class ResultsUiState(
     val events: List<SessionEvent> = emptyList(),
+    val sessionDurationSeconds: Int = 1500, // Default 25 min
     val isLoading: Boolean = true
 )
 
@@ -34,8 +35,25 @@ class ResultsViewModel @Inject constructor(
         val sessionId = focusManager.lastCompletedSessionId
         if (sessionId != null) {
             viewModelScope.launch {
+                // Fetch the session to get the actual duration
+                val session = repository.getSessionById(sessionId)
+                val startTime = session?.startTime ?: 0L
+                val endTime = session?.endTime ?: startTime
+                val duration = if (endTime > startTime) {
+                    ((endTime - startTime) / 1000L).toInt()
+                } else {
+                    1500 // Fallback
+                }
+                
                 repository.getEventsForSession(sessionId).collect { events ->
-                    _uiState.value = ResultsUiState(events = events, isLoading = false)
+                    val maxOffset = events.maxOfOrNull { it.sessionOffsetSeconds } ?: 0
+                    val finalDuration = duration.coerceAtLeast(maxOffset).coerceAtLeast(1)
+                    
+                    _uiState.value = ResultsUiState(
+                        events = events, 
+                        sessionDurationSeconds = finalDuration,
+                        isLoading = false
+                    )
                 }
             }
         } else {

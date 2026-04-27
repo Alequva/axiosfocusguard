@@ -117,6 +117,8 @@ class AppRepository @Inject constructor(
 
     fun getEventsForSession(sessionId: String): Flow<List<SessionEvent>> = sessionEventDao.getEventsForSession(sessionId)
 
+    suspend fun getSessionById(sessionId: String): FocusSession? = focusSessionDao.getSessionById(sessionId)
+
     suspend fun saveFocusSession(session: FocusSession) {
         focusSessionDao.insertSession(session)
     }

@@ -1,18 +1,10 @@
 package com.axios.focusguard.ui.results
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,6 +26,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.axios.focusguard.data.SessionEvent
+import com.axios.focusguard.ui.components.MascotImage
+import com.axios.focusguard.ui.components.MascotPose
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -49,15 +43,16 @@ fun ResultsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Session Summary") })
+            TopAppBar(title = { Text("Session Summary", fontWeight = FontWeight.Bold) })
         }
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
             if (uiState.isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -65,8 +60,7 @@ fun ResultsScreen(
                 }
             } else {
                 val rawEvents = uiState.events
-                // Helper to count bursts (10s grouping)
-                val totalBursts = mutableListOf<Long>().apply {
+                val bursts = mutableListOf<Long>().apply {
                     rawEvents.groupBy { it.packageName }.forEach { (_, events) ->
                         var lastT: Long = 0
                         events.sortedBy { it.timestamp }.forEach { e ->
@@ -76,121 +70,189 @@ fun ResultsScreen(
                             lastT = e.timestamp
                         }
                     }
-                }.size
+                }
+                val totalBursts = bursts.size
                 
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
+                // Content Area
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = if (totalBursts == 0) "Perfect Focus!" else "Session Complete",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = if (totalBursts == 0) 
-                                "You stayed perfectly focused!" 
-                                else "${rawEvents.size} attempts in $totalBursts bursts",
-                            textAlign = TextAlign.Center,
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = if (totalBursts == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                            )
-                        )
-                        
-                        if (totalBursts > 0) {
-                            Spacer(modifier = Modifier.height(16.dp))
-                            val early = uiState.events.count { it.sessionOffsetSeconds < 300 }
-                            val late = uiState.events.count { it.sessionOffsetSeconds > 1200 }
-                            val mid = totalBursts - early - late
-                            
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceEvenly
-                            ) {
-                                TimelineStat("Early", early)
-                                TimelineStat("Mid", mid)
-                                TimelineStat("Late", late)
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    MascotImage(
+                        pose = if (totalBursts == 0) MascotPose.YAY else MascotPose.CLOCK,
+                        size = 180.dp
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    Text(
+                        text = "DISTRACTION BURSTS",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.outline,
+                        letterSpacing = 2.sp
+                    )
+                    
+                    Text(
+                        text = totalBursts.toString(),
+                        style = MaterialTheme.typography.displayLarge.copy(
+                            fontSize = 120.sp,
+                            fontWeight = FontWeight.Light
+                        ),
+                        color = if (totalBursts == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                    )
+                    
+                    Spacer(modifier = Modifier.height(48.dp))
+                    
+                    // Visual Timeline Bar
+                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(2.dp))
+                        ) {
+                            BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(8.dp)) {
+                                val width = maxWidth
+                                for (event in rawEvents) {
+                                    val ratio = if (uiState.sessionDurationSeconds > 0) {
+                                        (event.sessionOffsetSeconds.toFloat() / uiState.sessionDurationSeconds.toFloat()).coerceIn(0f, 1f)
+                                    } else 0f
+                                    
+                                    Box(
+                                        modifier = Modifier
+                                            .offset(x = width * ratio - 4.dp)
+                                            .size(8.dp)
+                                            .background(MaterialTheme.colorScheme.error, RoundedCornerShape(4.dp))
+                                            .align(Alignment.CenterStart)
+                                    )
+                                }
                             }
                         }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Start", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                            Text("Finish", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                        }
                     }
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                if (uiState.events.isNotEmpty()) {
-                    Text(
-                        text = "Distraction Timeline",
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Start
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
                     
-                    LazyColumn(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                    ) {
-                        // Group raw events into 10s bursts for display
-                        val allBursts = mutableListOf<List<SessionEvent>>()
-                        uiState.events.groupBy { it.packageName }.forEach { (_, appEvents) ->
-                            val sorted = appEvents.sortedBy { it.timestamp }
-                            var currentBurst = mutableListOf<SessionEvent>()
-                            sorted.forEach { event ->
-                                if (currentBurst.isEmpty()) {
-                                    currentBurst.add(event)
-                                } else {
-                                    val lastEvent = currentBurst.last()
-                                    if (event.timestamp - lastEvent.timestamp < 10000) {
-                                        currentBurst.add(event)
-                                    } else {
-                                        allBursts.add(currentBurst)
-                                        currentBurst = mutableListOf(event)
+                    Spacer(modifier = Modifier.height(64.dp))
+                    
+                    // Offender List with Hierarchy
+                    if (rawEvents.isNotEmpty()) {
+                        val appGroups = rawEvents.groupBy { it.packageName }.values.sortedByDescending { it.size }
+                        
+                        Text(
+                            text = "OFFENDING APPS",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Start,
+                            letterSpacing = 1.sp
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth().animateContentSize()
+                        ) {
+                            for (index in appGroups.indices) {
+                                val group = appGroups[index]
+                                val appName = group.first().appName
+                                val category = group.first().category
+                                val attempts = group.size
+                                val isTop = index == 0
+                                
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (isTop) 
+                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) 
+                                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                    ),
+                                    shape = RoundedCornerShape(if (isTop) 16.dp else 12.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(if (isTop) 20.dp else 14.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = appName, 
+                                                fontWeight = if (isTop) FontWeight.ExtraBold else FontWeight.Bold, 
+                                                style = if (isTop) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge
+                                            )
+                                            Text(
+                                                text = category, 
+                                                color = if (isTop) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, 
+                                                style = MaterialTheme.typography.labelMedium
+                                            )
+                                        }
+                                        Surface(
+                                            color = if (isTop) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.error.copy(alpha = 0.1f),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Text(
+                                                text = "$attempts",
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                                fontWeight = FontWeight.Black,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = if (isTop) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.error
+                                            )
+                                        }
                                     }
                                 }
                             }
-                            if (currentBurst.isNotEmpty()) allBursts.add(currentBurst)
                         }
-
-                        items(allBursts.sortedByDescending { it.first().timestamp }) { burstEvents ->
-                            AppViolationSummary(burstEvents.first().appName, burstEvents)
-                            Spacer(modifier = Modifier.height(8.dp))
+                    } else {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
+                        ) {
+                            Text(
+                                text = "✨",
+                                style = MaterialTheme.typography.displayMedium
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "Perfect focus streak.",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "No apps were blocked this session.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                    }
-                } else {
-                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        Text("✨", fontSize = 64.sp)
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Button(
-                    onClick = onAnalyzeClick,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) {
-                    Text("GET AI INSIGHTS")
-                }
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                TextButton(
-                    onClick = {
-                        viewModel.resetToStart()
-                        onNextSession()
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("START NEXT SESSION")
+                // Action Area
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Button(
+                        onClick = {
+                            viewModel.resetToStart()
+                            onNextSession()
+                        },
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text("START NEXT SESSION", fontWeight = FontWeight.Bold)
+                    }
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    OutlinedButton(
+                        onClick = onAnalyzeClick,
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        border = ButtonDefaults.outlinedButtonBorder.copy(width = 1.dp)
+                    ) {
+                        Text("GET AI INSIGHTS", color = MaterialTheme.colorScheme.primary)
+                    }
                 }
             }
         }

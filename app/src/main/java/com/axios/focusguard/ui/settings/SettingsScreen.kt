@@ -36,6 +36,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -55,6 +58,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.axios.focusguard.data.AppInfo
 import com.axios.focusguard.data.AppCategory
+import com.axios.focusguard.ui.components.MascotImage
+import com.axios.focusguard.ui.components.MascotPose
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -144,10 +149,36 @@ fun PermissionSection(
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(16.dp)
     ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Guardian Permissions",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "These allow the cat to guard your focus.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+            MascotImage(pose = MascotPose.SHIELD, size = 64.dp)
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .padding(16.dp)
+        ) {
         Text("Required Permissions", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(12.dp))
         
@@ -164,6 +195,7 @@ fun PermissionSection(
         )
     }
 }
+}
 
 @Composable
 fun PermissionItem(title: String, isGranted: Boolean, onClick: () -> Unit) {
@@ -171,7 +203,7 @@ fun PermissionItem(title: String, isGranted: Boolean, onClick: () -> Unit) {
         Icon(
             imageVector = if (isGranted) Icons.Default.CheckCircle else Icons.Default.Warning,
             contentDescription = null,
-            tint = if (isGranted) MaterialTheme.colorScheme.primary else Color(0xFFF44336)
+            tint = if (isGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
         )
         Spacer(modifier = Modifier.width(12.dp))
         Text(text = title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
@@ -190,43 +222,58 @@ fun PermissionItem(title: String, isGranted: Boolean, onClick: () -> Unit) {
 
 @Composable
 fun AppItem(app: AppInfo, onToggle: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onToggle() }
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Surface(
+        onClick = onToggle,
+        modifier = Modifier.fillMaxWidth(),
+        color = if (app.isBlocked) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.05f) else Color.Transparent
     ) {
-        val iconBitmap = remember(app.packageName) { app.icon?.toBitmap()?.asImageBitmap() }
-        
-        if (iconBitmap != null) {
-            Image(
-                bitmap = iconBitmap,
-                contentDescription = null,
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(8.dp))
+        Row(
+            modifier = Modifier
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val iconBitmap = remember(app.packageName) { app.icon?.toBitmap()?.asImageBitmap() }
+            
+            if (iconBitmap != null) {
+                Image(
+                    bitmap = iconBitmap,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                )
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = app.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                    if (app.category != AppCategory.OTHER) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = app.category.name,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+                Text(
+                    text = app.packageName, 
+                    style = MaterialTheme.typography.bodySmall, 
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            }
+            Switch(
+                checked = app.isBlocked, 
+                onCheckedChange = { onToggle() },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = MaterialTheme.colorScheme.primary,
+                    checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                )
             )
         }
-        Spacer(modifier = Modifier.width(16.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = app.name, style = MaterialTheme.typography.bodyLarge)
-                if (app.category != AppCategory.OTHER) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = app.category.name,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
-                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                    )
-                }
-            }
-            Text(text = app.packageName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
-        }
-        Checkbox(checked = app.isBlocked, onCheckedChange = { onToggle() })
     }
 }
 

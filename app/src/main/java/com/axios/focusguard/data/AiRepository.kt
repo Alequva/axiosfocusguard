@@ -72,6 +72,10 @@ class AiRepository @Inject constructor() {
             Provide a short, punchy, and slightly sarcastic analysis of their focus. 
             Mention the frantic behavior if applicable.
             Then, give 2 specific recommendations on how they can improve for the next session.
+            
+            CRITICAL: Respond in PLAIN TEXT ONLY. 
+            No asterisks, no markdown, no bolding, no bullet symbols. 
+            Use only clean prose and standard numbering (1., 2.).
             Keep the total response under 100 words.
         """.trimIndent()
 

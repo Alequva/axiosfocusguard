@@ -49,11 +49,46 @@ private val GreenColors = darkColorScheme(
     outline         = Color(0xFF4E4E4E)
 )
 
+private val SageColors = darkColorScheme(
+    primary             = Color(0xFF84A98C),
+    onPrimary           = Color(0xFF1B241F),
+    primaryContainer    = Color(0xFF2F3E36),
+    onPrimaryContainer  = Color(0xFFCAD2C5),
+    secondary           = Color(0xFF52796F),
+    onSecondary         = Color(0xFFFFFFFF),
+    background          = Color(0xFF1B1E1B),
+    onBackground        = Color(0xFFE0E5E0),
+    surface             = Color(0xFF222722),
+    onSurface           = Color(0xFFE0E5E0),
+    surfaceVariant      = Color(0xFF2D352F),
+    onSurfaceVariant    = Color(0xFFB1BDB1),
+    outline             = Color(0xFF5C645C),
+    error               = Color(0xFFD97767),
+    onError             = Color(0xFF1B1E1B)
+)
+
+private val CalmGreenColors = darkColorScheme(
+    primary             = Color(0xFF6BBF6B), // More Green
+    onPrimary           = Color(0xFF0D1B0D),
+    primaryContainer    = Color(0xFF2D4B2D),
+    onPrimaryContainer  = Color(0xFFC2E0C2),
+    secondary           = Color(0xFF52796F),
+    onSecondary         = Color(0xFFFFFFFF),
+    background          = Color(0xFF101410),
+    onBackground        = Color(0xFFE8EDE8),
+    surface             = Color(0xFF181C18),
+    onSurface           = Color(0xFFE8EDE8),
+    surfaceVariant      = Color(0xFF2D352F),
+    onSurfaceVariant    = Color(0xFFB7C7B7),
+    outline             = Color(0xFF5C645C),
+    error               = Color(0xFFD97767),
+    onError             = Color(0xFF1B1E1B)
+)
 
 @Composable
 fun FocusGuardTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = GreenColors,
+        colorScheme = CalmGreenColors,
         content     = content
     )
 }

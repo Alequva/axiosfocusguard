@@ -1,8 +1,7 @@
 package com.axios.focusguard.ui.timer
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -21,6 +20,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import com.axios.focusguard.domain.model.TimerPreset
+import com.axios.focusguard.ui.components.MascotImage
+import com.axios.focusguard.ui.components.MascotPose
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -101,11 +102,11 @@ fun TimerScreen(
                 )
 
                 val progressColor by animateColorAsState(
-                    targetValue = if (uiState.sessionType == SessionType.FOCUS) 
-                        MaterialTheme.colorScheme.primary 
-                        else Color(0xFFB1FD54),
+                    targetValue = MaterialTheme.colorScheme.primary,
                     label = "ProgressColor"
                 )
+
+                val sweepAngle = 360f * progress
 
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val strokeWidth = 4.dp.toPx()
@@ -120,8 +121,7 @@ fun TimerScreen(
                         style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
                     )
                     
-                    // True Clockwise Sweep: Start at -90 (Top) and sweep right
-                    val sweepAngle = 360f * progress
+                    // True Clockwise Sweep
                     drawArc(
                         color = progressColor,
                         startAngle = -90f,
@@ -130,14 +130,14 @@ fun TimerScreen(
                         style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
                     )
 
-                    // Comet Head: Locked to the LEADING edge of the clockwise sweep
-                    val angleInRad = (sweepAngle - 90f) * (Math.PI / 180f).toFloat()
+                    // Comet Head: Solid and Aligned
+                    val angleInRad = (sweepAngle - 90f) * (Math.PI.toFloat() / 180f)
                     val endCircleX = center.x + radius * cos(angleInRad)
                     val endCircleY = center.y + radius * sin(angleInRad)
                     
                     drawCircle(
                         color = progressColor,
-                        radius = (strokeWidth * 2f),
+                        radius = strokeWidth * 1.5f,
                         center = Offset(endCircleX, endCircleY)
                     )
                 }
@@ -167,7 +167,6 @@ fun TimerScreen(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Presets Button
                 ActionButton(
                     icon = Icons.Default.List,
                     onClick = { showPresetsSheet = true },
@@ -204,6 +203,16 @@ fun TimerScreen(
                     Text("DEBUG: FINISH SESSION", color = MaterialTheme.colorScheme.outline)
                 }
             }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Mascot Placement
+            val mascotPose = when {
+                uiState.isRunning -> MascotPose.ZEN
+                uiState.timeLeftSeconds < uiState.initialSessionSeconds -> MascotPose.CLOCK
+                else -> MascotPose.NEUTRAL
+            }
+            MascotImage(pose = mascotPose, size = 120.dp)
         }
 
         Text(
@@ -340,7 +349,7 @@ fun PresetCard(
                     color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "${preset.focusTimeMin}m focus • ${preset.breakTimeMin}m break • ${preset.rounds} rounds",
+                    text = "${preset.focusTimeMin}m focus \u2022 ${preset.breakTimeMin}m break \u2022 ${preset.rounds} rounds",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

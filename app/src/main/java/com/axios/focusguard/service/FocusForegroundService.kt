@@ -143,7 +143,7 @@ class FocusForegroundService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Focus Guard")
             .setContentText("Focus session is active")
-            .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
+            .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_MIN)

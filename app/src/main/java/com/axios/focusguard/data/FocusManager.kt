@@ -44,6 +44,7 @@ class FocusManager @Inject constructor(
     private var timerJob: Job? = null
     
     private var activePreset: TimerPreset? = null
+    private var sessionStartTimeMillis: Long = 0
 
     val isFocusActive: Boolean
         get() = _uiState.value.isRunning && _uiState.value.sessionType == SessionType.FOCUS
@@ -80,13 +81,15 @@ class FocusManager @Inject constructor(
         val currentState = _uiState.value
         val newId = _currentSessionId.value ?: UUID.randomUUID().toString()
         _currentSessionId.value = newId
-        _lastCompletedSessionId = newId
+        
+        val startTime = System.currentTimeMillis()
+        sessionStartTimeMillis = startTime
         
         scope.launch {
             repository.saveFocusSession(
                 FocusSession(
                     sessionId = newId,
-                    startTime = System.currentTimeMillis(),
+                    startTime = startTime,
                     type = currentState.sessionType.name,
                     isCompleted = false
                 )
@@ -139,10 +142,11 @@ class FocusManager @Inject constructor(
         
         scope.launch {
             sessionId?.let { id ->
+                _lastCompletedSessionId = id
                 repository.saveFocusSession(
                     FocusSession(
                         sessionId = id,
-                        startTime = 0, 
+                        startTime = sessionStartTimeMillis, 
                         endTime = System.currentTimeMillis(),
                         type = _uiState.value.sessionType.name,
                         isCompleted = true
@@ -168,10 +172,11 @@ class FocusManager @Inject constructor(
         
         scope.launch {
             sessionId?.let { id ->
+                _lastCompletedSessionId = id
                 repository.saveFocusSession(
                     FocusSession(
                         sessionId = id,
-                        startTime = 0, 
+                        startTime = sessionStartTimeMillis, 
                         endTime = System.currentTimeMillis(),
                         type = _uiState.value.sessionType.name,
                         isCompleted = true
