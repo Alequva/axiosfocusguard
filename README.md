@@ -10,7 +10,7 @@ The app follows the **Pomodoro Technique** (Focus/Break cycles) but adds a layer
 ### Key Features
 - **Strict App Blocking**: Uses Accessibility Services to forcefully redirect users away from distractors.
 - **Mascot System**: An "Alien Cat" mascot that reacts to your focus state (ZEN, YAY, THINKING, etc.).
-- **AI Insights**: Integration with Google Gemini to analyze distraction patterns and offer coaching.
+- **AI Accountability Coach**: Integration with Google Gemini to analyze distraction patterns. The coach avoids generic advice, focusing instead on cognitive and behavioral tactics.
 - **Focus Scoring**: A proprietary scoring logic based on raw attempts, "burst" impulses, and timing patterns.
 - **Custom Presets**: Support for classic Pomodoro, deep work sessions, or custom user-defined intervals.
 
@@ -52,7 +52,7 @@ The project follows modern Android development practices using **Clean Architect
    - If a blocked app is detected, it logs a `SessionEvent` and executes `GLOBAL_ACTION_HOME`.
 4. **Scoring**: At session end, `ResultsViewModel` and `AnalysisViewModel` query the `session_events` table.
    - **Score Calculation**: Starts at 100. Deducts points for raw attempts (-2), distraction "bursts" (-8), and "early session" lapses (-15).
-5. **AI Analysis**: `AiRepository` groups events into temporal bursts and sends a prompt to Gemini Flash, which returns a "slightly sarcastic" coaching summary.
+5. **AI Coaching**: `AiRepository` groups events into temporal bursts. A sophisticated prompt guides Gemini to provide behavioral recommendations (e.g., urge surfing, boredom tolerance) while explicitly banning generic advice like "uninstall apps."
 
 ---
 
@@ -93,7 +93,7 @@ The mascot is an integral part of the UX, mapped via the `MascotPose` enum:
 ```text
 app/src/main/java/com/axios/focusguard/
 ├── data/
-│   ├── AiRepository.kt         # Gemini integration
+│   ├── AiRepository.kt         # Gemini integration & coaching logic
 │   ├── AppRepository.kt        # Room & App Info bridge
 │   ├── FocusManager.kt         # Core Timer & Session logic
 │   ├── SessionEvent.kt         # Distraction log model
