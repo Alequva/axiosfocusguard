@@ -8,7 +8,7 @@ AxiosFocusGuard is a premium, AI-powered productivity companion for Android. It 
 The app follows the **Pomodoro Technique** (Focus/Break cycles) but adds a layer of accountability. While a focus session is active, the app monitors for "distraction impulses"—attempts to open blocked apps like Instagram, TikTok, or YouTube. These attempts are logged, categorized, and analyzed by an AI coach to provide actionable feedback.
 
 ### Key Features
-- **Strict App Blocking**: Uses Accessibility Services to forcefully redirect users away from distractors.
+- **Strict App Blocking**: Uses a high-frequency polling mechanism via **UsageStats** and a **Foreground Service** to forcefully redirect users away from distractors.
 - **Mascot System**: An "Alien Cat" mascot that reacts to your focus state (ZEN, YAY, THINKING, etc.).
 - **AI Accountability Coach**: Integration with Google Gemini to analyze distraction patterns. The coach avoids generic advice, focusing instead on cognitive and behavioral tactics.
 - **Focus Scoring**: A proprietary scoring logic based on raw attempts, "burst" impulses, and timing patterns.
@@ -22,12 +22,12 @@ The project follows modern Android development practices using **Clean Architect
 ### Package Structure
 - **`com.axios.focusguard`**: Root package containing the Application class and Main Activity.
 - **`data`**: Room database, DAOs, Repositories (App, AI, Presets), and the core `FocusManager`.
-- **`service`**: Background services including `FocusAccessibilityService` (blocking) and `FocusForegroundService` (lifecycle management).
+- **`service`**: `FocusForegroundService` handles both lifecycle management (via a persistent notification) and the active app-blocking polling loop.
 - **`ui`**: Jetpack Compose screens, ViewModels, and the Theme system.
 - **`util`**: Utility classes for permissions and constants.
 
 ### Key Design Decisions
-1. **Accessibility Service**: Chosen for app blocking as it provides the most reliable way to detect window state changes and perform global "Home" actions.
+1. **UsageStats Monitoring**: Switched from Accessibility Service to `UsageStatsManager` polling for better performance and reliability across different Android versions. It detects the top-most app every 200ms during active sessions.
 2. **Hilt for DI**: Dependency injection is used project-wide to decouple the data layer from the UI.
 3. **StateFlow & Compose**: Unidirectional data flow (UDF) is enforced, with `FocusManager` serving as the single source of truth for the timer state.
 
@@ -48,8 +48,8 @@ The project follows modern Android development practices using **Clean Architect
 
 1. **Initialization**: `FocusManager` loads the active preset from `DataStore` and initializes `TimerUiState`.
 2. **Starting**: User hits "Play". `FocusManager` starts `FocusForegroundService` (to prevent process death) and begins the countdown.
-3. **Monitoring**: `FocusAccessibilityService` listens for `TYPE_WINDOW_STATE_CHANGED`. 
-   - If a blocked app is detected, it logs a `SessionEvent` and executes `GLOBAL_ACTION_HOME`.
+3. **Monitoring**: `FocusForegroundService` runs a high-priority loop that queries `UsageStatsManager.queryEvents()`.
+   - If the current top package matches a blocked app, it logs a `SessionEvent` and triggers a forceful redirect back to the `MainActivity`.
 4. **Scoring**: At session end, `ResultsViewModel` and `AnalysisViewModel` query the `session_events` table.
    - **Score Calculation**: Starts at 100. Deducts points for raw attempts (-2), distraction "bursts" (-8), and "early session" lapses (-15).
 5. **AI Coaching**: `AiRepository` groups events into temporal bursts. A sophisticated prompt guides Gemini to provide behavioral recommendations (e.g., urge surfing, boredom tolerance) while explicitly banning generic advice like "uninstall apps."
@@ -80,7 +80,7 @@ The mascot is an integral part of the UX, mapped via the `MascotPose` enum:
 
 ### Prerequisites
 - **Gemini API Key**: Required for the Analysis screen. Add `GEMINI_API_KEY=your_key` to `local.properties`.
-- **Permissions**: The app requires **Usage Access** and **Accessibility Service** to be enabled manually via the Settings screen.
+- **Permissions**: The app requires **Usage Access** (to monitor foreground apps) and **Overlay Permission** (to ensure the blocker can redirect effectively).
 
 ### Dependencies
 - **UI**: Jetpack Compose, Material3, Navigation Compose.
@@ -99,8 +99,7 @@ app/src/main/java/com/axios/focusguard/
 │   ├── SessionEvent.kt         # Distraction log model
 │   └── FocusSession.kt         # Historical session model
 ├── service/
-│   ├── FocusAccessibilityService.kt # App Blocking logic
-│   └── FocusForegroundService.kt    # Persistence & Notification
+│   └── FocusForegroundService.kt    # Polling logic & Notification
 ├── ui/
 │   ├── analysis/               # AI Insights & Scoring
 │   ├── results/                # Post-session summary
